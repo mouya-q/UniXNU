@@ -31,6 +31,9 @@ if [ ! -x .cache/fakeroot/usr/local/libexec/availability.pl ]; then
     OBJROOT="$ROOT/build/availability" SYMROOT="$ROOT/build/availability" \
     DSTROOT="$ROOT/.cache/fakeroot" CMAKE="$(command -v cmake)" NINJA="$(command -v ninja)"
 fi
+# A bootstrap pass leaves the work tree patched and modified by the build. Reset it
+# so every patch applies cleanly on the original source, not on a modified tree.
+git -C .cache/xnu-work checkout -- .
 # The optional observation hooks overlap existing root/exec patch context.
 # Remove them first so earlier independent patches retain their idempotent checks.
 # The same holds for the boot-time GPU addon mount and the staged system apps copy (zzy), which edit the owner Data mount function
