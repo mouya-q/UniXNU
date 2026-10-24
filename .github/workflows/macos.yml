@@ -301,9 +301,37 @@ jobs:
             echo "| userdata | ${USERDATA:-skipped} |"
             echo "| payload | ${PAYLOAD:-skipped} |"
             echo
-            echo "This workflow only checks that the build works. It publishes text logs (7 days) and no images."
+            echo "This workflow publishes text logs and build artifacts (7 days)."
             xcodebuild -version 2>&1 | head -n 1 || true
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stage build artifacts
+        if: always() && steps.check.outcome == 'success' && steps.kernel.outcome == 'success'
+        run: |
+          mkdir -p "$RUNNER_TEMP/stage-artifacts"
+          # Kernel binaries and reports
+          find out/umi/tree/build/xnu/ios-obj -maxdepth 2 -type f -name 'mach.development.bcm2837*' 2>/dev/null | while read -r f; do
+            cp "$f" "$RUNNER_TEMP/stage-artifacts/" 2>/dev/null || true
+          done
+          # Payload FAT image, JSON report, and generated ADT
+          if [ -d out/umi/payload ]; then
+            cp -r out/umi/payload/* "$RUNNER_TEMP/stage-artifacts/" 2>/dev/null || true
+          fi
+          # Prelink candidate if it exists
+          find out/umi -maxdepth 3 -type f -name '*prelink*' -size +1M 2>/dev/null | while read -r f; do
+            cp "$f" "$RUNNER_TEMP/stage-artifacts/" 2>/dev/null || true
+          done
+          echo "=== Staged artifacts ==="
+          ls -la "$RUNNER_TEMP/stage-artifacts/"
+
+      - name: Upload build artifacts
+        if: always() && steps.check.outcome == 'success' && steps.kernel.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: unixnu-${{ steps.check.outputs.board }}-artifacts-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/stage-artifacts/
+          retention-days: 7
+          if-no-files-found: warn
 
       - name: Remove proprietary inputs
         if: always()
